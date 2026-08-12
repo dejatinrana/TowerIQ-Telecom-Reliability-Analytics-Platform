@@ -1,0 +1,14 @@
+# Local Spark and pipeline settings.
+environment: local
+spark:
+  app_name: TelecomNetworkReliabilityPlatform
+  master: local[*]
+  adaptive_query_execution: true
+
+paths:
+  raw: data/raw
+  bronze: data/bronze
+  silver: data/silver
+  gold: data/gold
+  quarantine: data/quarantine
+

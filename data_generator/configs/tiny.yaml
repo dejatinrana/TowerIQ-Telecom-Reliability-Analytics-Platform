@@ -1,0 +1,5 @@
+# Tiny profile for unit development.
+profile: tiny
+seed: 42
+network_events: 10000
+

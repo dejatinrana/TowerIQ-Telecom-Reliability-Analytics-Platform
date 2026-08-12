@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local data outputs
+data/raw/
+data/bronze/
+data/silver/
+data/gold/
+data/quarantine/
+
+# Spark local artifacts
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
