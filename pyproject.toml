@@ -1,10 +1,9 @@
 [project]
-name = "telecom-network-reliability-platform"
+name = "toweriq"
 version = "0.1.0"
-description = "Production-style PySpark telecom data engineering platform and Spark learning lab."
+description = "TowerIQ: production-style PySpark telecom reliability analytics platform and Spark learning lab."
 requires-python = ">=3.10"
 dependencies = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-

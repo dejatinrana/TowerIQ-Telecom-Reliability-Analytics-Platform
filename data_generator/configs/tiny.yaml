@@ -1,5 +1,12 @@
 # Tiny profile for unit development.
 profile: tiny
 seed: 42
-network_events: 10000
-
+regions: 8
+towers: 80
+service_plans: 6
+subscribers: 5000
+devices: 5500
+network_events: 50000
+calls: 20000
+data_sessions: 30000
+tower_alarms: 800
