@@ -2,8 +2,12 @@
 name = "toweriq"
 version = "0.1.0"
 description = "TowerIQ: production-style PySpark telecom reliability analytics platform and Spark learning lab."
-requires-python = ">=3.10"
-dependencies = []
+requires-python = ">=3.9"
+dependencies = [
+    "pyspark>=3.5,<4",
+    "PyYAML>=6,<7",
+    "pytest>=8,<9",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

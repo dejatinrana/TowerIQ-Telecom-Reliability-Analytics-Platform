@@ -4,6 +4,7 @@ spark:
   app_name: TelecomNetworkReliabilityPlatform
   master: local[*]
   adaptive_query_execution: true
+  use_pyspark_package: true
 
 paths:
   raw: data/raw
@@ -11,4 +12,3 @@ paths:
   silver: data/silver
   gold: data/gold
   quarantine: data/quarantine
-

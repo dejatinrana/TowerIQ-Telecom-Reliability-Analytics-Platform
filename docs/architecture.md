@@ -21,6 +21,30 @@ Raw telecom sources
   -> Gold telecom KPIs
 ```
 
+## Bronze Ingestion
+
+Bronze is the first controlled copy of raw source data. It reads raw CSV files
+with explicit schemas and writes Parquet outputs while preserving the source
+columns.
+
+Bronze adds standard technical metadata:
+
+```text
+_bronze_loaded_at
+_bronze_table
+_dataset_profile
+_source_format
+```
+
+For the tiny profile, Bronze outputs are written to:
+
+```text
+data/bronze/tiny/<table_name>/
+```
+
+The first Bronze ingestion verified that raw and Bronze row counts match for all
+nine source tables.
+
 The first dataset design follows a star-schema-inspired model. Fact tables store
 network activity such as calls, data sessions, network events, and tower alarms.
 Dimension tables describe the business context such as regions, towers,

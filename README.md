@@ -45,6 +45,25 @@ answer questions such as:
 python3 data_generator/generate_tiny_dataset.py --output-dir data/raw/tiny
 ```
 
+## Run Bronze Ingestion
+
+```bash
+python3 -m src.jobs.run_bronze_ingestion --config configs/local.yaml --profile tiny
+```
+
+## Local Setup
+
+Use a project virtual environment before running jobs:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+See [Local Setup](docs/setup.md) for details about avoiding local Spark runtime
+mismatches.
+
 ## Current Status
 
 Scaffold only. Real implementation starts with Phase 0: Project Foundation and Learning Contract.
