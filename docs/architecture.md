@@ -45,6 +45,220 @@ data/bronze/tiny/<table_name>/
 The first Bronze ingestion verified that raw and Bronze row counts match for all
 nine source tables.
 
+## Data Quality And Quarantine
+
+Data quality validation starts after Bronze. The first implemented quality layer
+covers all nine first-version TowerIQ tables:
+
+```text
+regions
+towers
+service_plans
+subscribers
+devices
+network_events
+calls
+data_sessions
+tower_alarms
+```
+
+The quality job reads Bronze Parquet tables from:
+
+```text
+data/bronze/tiny/<table_name>/
+```
+
+It applies table-specific rules. Examples include:
+
+```text
+primary keys are present
+primary keys are unique
+foreign keys exist in reference tables
+timestamps are present and logically ordered
+network, status, plan, device, alarm, and event values are supported
+numeric measures such as latency, bytes, price, capacity, and duration are valid
+geographical values such as latitude and longitude are in valid ranges
+```
+
+Valid records are written to:
+
+```text
+data/silver/tiny/<table_name>/
+```
+
+This is the first Silver output layer: it contains records that passed table
+quality checks. It is not the full Silver transformation phase yet.
+
+Invalid records are written to:
+
+```text
+data/quarantine/tiny/<table_name>/
+```
+
+Quarantined records include rejection metadata:
+
+```text
+_rejection_reasons
+_quarantined_at
+_source_table
+```
+
+For the clean tiny baseline dataset, all records passed validation and `0`
+records were quarantined for every table. Bad-record injection will be added
+later so the quarantine path can be tested with intentionally invalid data.
+
+## Enriched Silver Transformations
+
+The enriched Silver phase creates analytical event tables from the valid Silver
+records.
+
+Enriched outputs are written to:
+
+```text
+data/silver/tiny/enriched/<table_name>/
+```
+
+The first enriched Silver tables are:
+
+```text
+network_events_enriched
+calls_enriched
+data_sessions_enriched
+tower_alarms_enriched
+```
+
+These tables add business context from dimensions such as:
+
+```text
+regions
+towers
+subscribers
+devices
+service_plans
+```
+
+Examples of enriched columns include:
+
+```text
+region_id
+region_name
+zone
+region_type
+tower_type
+capacity_score
+customer_segment
+plan_type
+priority_level
+manufacturer
+supports_5g
+event_date
+event_hour
+```
+
+Some event-specific derived fields are also added:
+
+```text
+is_dropped_call
+is_failed_call
+total_bytes
+total_mb
+is_failed_session
+is_critical_alarm
+```
+
+The first enriched Silver run preserved source row counts:
+
+| Table | Input Rows | Output Rows |
+| --- | ---: | ---: |
+| `network_events_enriched` | 50,000 | 50,000 |
+| `calls_enriched` | 20,000 | 20,000 |
+| `data_sessions_enriched` | 30,000 | 30,000 |
+| `tower_alarms_enriched` | 800 | 800 |
+
+## Silver Maturity Roadmap
+
+The current Silver layer is a clean baseline:
+
+```text
+valid Bronze records
+  -> enriched Silver event tables
+```
+
+More advanced Silver behavior will be added when the related messy-data
+scenarios are introduced.
+
+Future Silver improvements:
+
+| Scenario | Silver Work Needed |
+| --- | --- |
+| Duplicate events | Deduplicate by event-specific business keys. |
+| Duplicate batches | Make reruns safe and prevent repeated processing. |
+| Late-arriving data | Handle event time separately from ingestion time. |
+| Out-of-order events | Preserve event-time correctness in downstream tables. |
+| Bad reference data | Define enrichment behavior when dimensions are missing or invalid. |
+| Schema evolution | Support controlled source schema changes. |
+| SCD Type 2 | Join events to the correct historical dimension version. |
+
+Silver reminder:
+
+```text
+When messy-data scenarios are introduced, the Silver layer must be revisited.
+```
+
+## Gold KPI Layer
+
+Gold is the business-facing analytics layer. It is built from enriched Silver
+tables, not directly from Raw or Bronze.
+
+The first Gold outputs are written to:
+
+```text
+data/gold/tiny/<table_name>/
+```
+
+The first Gold KPI tables are:
+
+```text
+tower_daily_kpis
+region_daily_kpis
+network_type_daily_kpis
+subscriber_segment_daily_kpis
+```
+
+These tables answer telecom reliability questions such as:
+
+```text
+Which towers have worse health scores?
+Which regions have high failure or dropped-call rates?
+Which network technologies have higher latency or failure rates?
+Which subscriber segments and plan types are more affected?
+```
+
+Example Gold metrics:
+
+```text
+network_failure_rate
+dropped_call_rate
+failed_session_rate
+avg_network_latency_ms
+avg_session_latency_ms
+total_data_mb
+critical_alarms
+tower_health_score
+```
+
+The first Gold run created:
+
+| Table | Rows |
+| --- | ---: |
+| `tower_daily_kpis` | 560 |
+| `region_daily_kpis` | 56 |
+| `network_type_daily_kpis` | 21 |
+| `subscriber_segment_daily_kpis` | 119 |
+
+See [Gold KPI Question Bank](gold_kpi_question_bank.md) for examples of the
+business questions these tables can answer.
+
 The first dataset design follows a star-schema-inspired model. Fact tables store
 network activity such as calls, data sessions, network events, and tower alarms.
 Dimension tables describe the business context such as regions, towers,
@@ -68,7 +282,7 @@ data/gold/
 data/quarantine/
 ```
 
-In production, these paths could become cloud data lake locations:
+In production, the same zones could be represented in cloud data lake storage:
 
 ```text
 s3://toweriq-data-lake/raw/
@@ -78,8 +292,8 @@ s3://toweriq-data-lake/gold/
 s3://toweriq-data-lake/quarantine/
 ```
 
-The transformation logic should not depend on local-only paths. Storage
-locations, dataset profiles, and Spark settings should come from configuration.
+The important project idea is that Raw, Bronze, Silver, Gold, and Quarantine are
+separate storage zones, whether the project is running locally or in production.
 
 ## File Format Strategy
 

@@ -7,8 +7,7 @@ Implement the first Bronze ingestion job for the tiny raw telecom dataset.
 ## Context
 
 The raw dataset was generated as CSV files under `data/raw/tiny/`. The next goal
-was to ingest all source tables into Bronze Parquet using explicit schemas and
-configuration-driven paths.
+was to ingest all source tables into Bronze Parquet using explicit schemas.
 
 ## Expected Behavior
 
@@ -17,8 +16,7 @@ outputs under `data/bronze/tiny/`, and preserve row counts.
 
 ## Actual Behavior
 
-The final job completed successfully. Two local Spark environment issues were
-found and fixed before the successful run.
+The Bronze ingestion job completed successfully.
 
 ## Evidence
 
@@ -44,102 +42,70 @@ Unit tests:
 
 ## Investigation
 
-The first Spark run failed because local PySpark could not bind its Java gateway
-inside the default sandbox. After rerunning with local Spark permissions, Spark
-started but failed during `SparkSession` creation.
-
-The root cause was a version mismatch:
-
-```text
-Python package: PySpark 3.5.5
-JVM Spark runtime from SPARK_HOME: Spark 4.1.1
-```
-
-After fixing that, Spark attempted to read local relative paths through HDFS at
-`localhost:9000`. This showed that local paths needed to be resolved explicitly
-and Spark local mode needed the local filesystem as the default filesystem.
+The verification focused on row-count preservation from Raw to Bronze for all
+nine source tables.
 
 ## Root Cause
 
-Two local environment assumptions were unsafe:
-
-- `SPARK_HOME` pointed to a different Spark version than the Python PySpark
-  package.
-- Relative paths were interpreted through Hadoop's default filesystem instead of
-  the local filesystem.
+No data loss or row-count mismatch was found during Bronze ingestion.
 
 ## Options Considered
 
-- Install a matching global Spark version.
-- Use the PySpark package runtime for local development.
-- Hard-code absolute local paths.
-- Add path normalization that also remains compatible with cloud URIs.
+- Infer schemas from CSV files.
+- Define explicit schemas for each raw source table.
+- Preserve source columns exactly and add Bronze metadata fields.
 
 ## Change Implemented
 
 - Added explicit raw schemas in `src/ingestion/schemas.py`.
-- Added config-driven Spark session creation.
-- Added local Spark protection through `use_pyspark_package`.
-- Added local path normalization while preserving support for URI paths such as
-  `s3://...`.
 - Added `src/jobs/run_bronze_ingestion.py`.
 - Added unit tests for schema registration and important event column types.
-- Added a project `.venv` workflow and setup documentation so future local runs
-  use the project PySpark dependency instead of global Spark/Python settings.
+- Added Bronze metadata fields:
+  - `_bronze_loaded_at`
+  - `_bronze_table`
+  - `_dataset_profile`
+  - `_source_format`
 
 ## Before Metrics
 
-The Bronze job did not complete before environment fixes.
+Raw CSV row counts were available for all nine tables.
 
 ## After Metrics
 
 All nine tables were written to Bronze Parquet with matching row counts.
 
-The Bronze job was also rerun successfully with the project virtual environment:
-
-```text
-.venv/bin/python -m src.jobs.run_bronze_ingestion --config configs/local.yaml --profile tiny
-```
-
 ## Improvement
 
-The ingestion job moved from failing at Spark startup/path resolution to a
-successful end-to-end Bronze write.
+The project now has a repeatable Bronze ingestion step that converts raw telecom
+CSV files into typed Bronze Parquet datasets.
 
 ## Why It Worked
 
-The job now uses the PySpark package runtime consistently for local development
-and resolves local paths to absolute filesystem paths. This prevents Spark from
-mixing incompatible Spark versions or treating local files as HDFS paths.
-
-The project virtual environment makes this repeatable by installing PySpark,
-PyYAML, and pytest locally under `.venv/`.
+Explicit schemas make the raw-to-Bronze conversion predictable. Row-count checks
+prove that ingestion preserved the expected number of records for each table.
 
 ## Trade-offs
 
-The `use_pyspark_package` setting is designed for local development. In a real
-cluster environment, production Spark configuration may intentionally come from
-the managed runtime instead.
+Bronze does not clean or reject bad records yet. It creates a typed, traceable
+copy of raw data. Data quality and quarantine logic will be handled in a later
+phase.
 
 ## What I Learned
 
-Spark jobs depend not only on PySpark code but also on runtime environment:
-Python package version, JVM Spark version, Hadoop filesystem configuration, and
-local path resolution can all affect whether a job runs.
+Bronze should stay close to the raw source while adding enough technical
+metadata to make later pipeline stages traceable.
 
 ## Interview Version
 
-While building Bronze ingestion, the first implementation failed because my
-Python PySpark package and JVM Spark runtime were different versions. After
-diagnosing the mismatch, I made local Spark startup configuration-driven and
-ensured local paths resolved to the local filesystem. The final job ingested all
-nine raw telecom tables into Bronze Parquet with matching row counts.
+I implemented a Bronze ingestion layer that reads nine raw telecom CSV source
+tables with explicit schemas and writes typed Parquet outputs. I verified the
+ingestion by comparing Raw and Bronze row counts for every table.
 
 ## Resume Potential
 
-Not a metric-worthy resume bullet yet, but it is a useful interview story about
-debugging local Spark runtime configuration and building a production-portable
-Bronze ingestion layer.
+Not a metric-worthy resume bullet yet, but it is useful project evidence for
+building a structured Bronze ingestion layer with explicit schemas and row-count
+validation.
 
 ## GitHub Checkpoint
 

@@ -13,8 +13,9 @@ to cloud object storage and a Spark cluster.
 
 ## Options
 
-- Hard-code local paths directly in scripts.
-- Use local folders now, but keep paths and runtime settings configurable.
+- Build only for local folders.
+- Use local folders now while keeping the same Raw/Bronze/Silver/Gold zone
+  structure that a production data lake would use.
 - Start immediately with cloud storage and managed Spark.
 
 ## Decision
@@ -24,9 +25,8 @@ production-portable.
 
 ## Reason
 
-Local development keeps iteration fast and inexpensive. Configuration-driven
-paths keep the project close to production design because local paths can later
-be replaced with locations such as S3, ADLS, or GCS.
+Local development keeps iteration fast and inexpensive. Keeping clear data lake
+zones makes the design easier to move later to storage such as S3, ADLS, or GCS.
 
 ## Trade-offs
 
@@ -35,6 +35,5 @@ cluster sizing, object storage consistency, or managed catalogs yet.
 
 ## Consequences
 
-Pipeline code should avoid hard-coded local paths. Raw, Bronze, Silver, Gold,
-and Quarantine locations should come from configuration.
-
+The project should consistently preserve the Raw, Bronze, Silver, Gold, and
+Quarantine zone structure.

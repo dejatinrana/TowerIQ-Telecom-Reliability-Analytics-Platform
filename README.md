@@ -51,19 +51,41 @@ python3 data_generator/generate_tiny_dataset.py --output-dir data/raw/tiny
 python3 -m src.jobs.run_bronze_ingestion --config configs/local.yaml --profile tiny
 ```
 
-## Local Setup
-
-Use a project virtual environment before running jobs:
+## Run Data Quality Checks
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
+python3 -m src.jobs.run_quality_checks --config configs/local.yaml --profile tiny
 ```
 
-See [Local Setup](docs/setup.md) for details about avoiding local Spark runtime
-mismatches.
+## Run Silver Transformations
+
+```bash
+python3 -m src.jobs.run_silver_transformations --config configs/local.yaml --profile tiny
+```
+
+## Run Gold KPI Transformations
+
+```bash
+python3 -m src.jobs.run_gold_kpis --config configs/local.yaml --profile tiny
+```
 
 ## Current Status
 
-Scaffold only. Real implementation starts with Phase 0: Project Foundation and Learning Contract.
+Current completed layers for the tiny profile:
+
+- Synthetic raw telecom dataset generated.
+- Bronze ingestion implemented with explicit schemas.
+- Data quality and quarantine implemented for all first-version tables.
+- First valid-record Silver layer created.
+- Enriched Silver event tables created for analytics.
+- First Gold KPI tables created.
+
+Next planned layer:
+
+- Additional Gold KPI refinement and baseline analytics review.
+
+Useful project docs:
+
+- [Architecture](docs/architecture.md)
+- [Data Model](docs/data_model.md)
+- [Gold KPI Question Bank](docs/gold_kpi_question_bank.md)
