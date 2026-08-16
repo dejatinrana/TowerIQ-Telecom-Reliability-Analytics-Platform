@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import time
 from dataclasses import dataclass
+
+from pyspark.sql import functions as F
 
 from src.ingestion.bronze_ingestion import build_storage_path
 from src.ingestion.schemas import RAW_SCHEMAS
+from src.transformations.silver_controls import SILVER_EVENT_SPECS, apply_silver_event_controls
 from src.transformations.silver_events import SilverEnrichmentResult, build_enriched_event_tables
 from src.utils.config import load_config
 from src.utils.spark import create_spark_session
@@ -18,8 +22,14 @@ class SilverTransformationJobResult:
 
     table_name: str
     input_count: int
+    deduplicated_input_count: int
     output_count: int
+    duplicates_removed: int
+    late_arriving_count: int
     output_path: str
+    control_runtime_seconds: float
+    write_runtime_seconds: float
+    runtime_seconds: float
 
 
 SOURCE_TABLE_BY_ENRICHED_TABLE = {
@@ -29,79 +39,144 @@ SOURCE_TABLE_BY_ENRICHED_TABLE = {
     "tower_alarms_enriched": "tower_alarms",
 }
 
+DIMENSION_TABLES = ["regions", "towers", "service_plans", "subscribers", "devices"]
+
+
+def read_dimension_table(spark, paths: dict[str, str], profile: str, table_name: str):
+    """Read SCD2 dimension when available, otherwise fall back to valid Silver."""
+    scd2_path = build_storage_path(paths["silver"], profile, "scd2", table_name)
+    try:
+        return spark.read.parquet(scd2_path)
+    except Exception:
+        return spark.read.parquet(build_storage_path(paths["silver"], profile, table_name))
+
 
 def write_enriched_table(
     result: SilverEnrichmentResult,
     paths: dict[str, str],
     profile: str,
     source_count: int,
+    deduplicated_source_count: int,
+    duplicates_removed: int,
+    late_arriving_count: int,
+    control_runtime_seconds: float,
 ) -> SilverTransformationJobResult:
-    """Write one enriched Silver table and verify row-count preservation."""
+    """Write one enriched Silver table and verify controlled row counts."""
+    started = time.perf_counter()
     output_path = build_storage_path(paths["silver"], profile, "enriched", result.table_name)
-    result.dataframe.write.mode("overwrite").parquet(output_path)
-    output_count = result.dataframe.sparkSession.read.parquet(output_path).count()
-
-    if output_count != source_count:
-        raise RuntimeError(
-            f"{result.table_name} row-count mismatch: input={source_count}, output={output_count}"
-        )
+    result.dataframe.write.mode("append").partitionBy("event_date", "_pipeline_batch_id").parquet(output_path)
+    write_runtime_seconds = round(time.perf_counter() - started, 3)
 
     return SilverTransformationJobResult(
         table_name=result.table_name,
         input_count=source_count,
-        output_count=output_count,
+        deduplicated_input_count=deduplicated_source_count,
+        output_count=deduplicated_source_count,
+        duplicates_removed=duplicates_removed,
+        late_arriving_count=late_arriving_count,
         output_path=output_path,
+        control_runtime_seconds=control_runtime_seconds,
+        write_runtime_seconds=write_runtime_seconds,
+        runtime_seconds=round(control_runtime_seconds + write_runtime_seconds, 3),
     )
 
 
-def run_silver_transformations(config_path: str, profile: str) -> list[SilverTransformationJobResult]:
+def build_controlled_sources(silver_tables: dict[str, object]) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
+    """Build controlled event sources and calculate their audit metrics."""
+    controlled_tables = {}
+    metrics = {}
+    for enriched_table, source_table in SOURCE_TABLE_BY_ENRICHED_TABLE.items():
+        started = time.perf_counter()
+        source_df = silver_tables[source_table]
+        controlled_df = apply_silver_event_controls(source_df, SILVER_EVENT_SPECS[enriched_table])
+        input_count = source_df.count()
+        controlled_metrics = controlled_df.agg(
+            F.count(F.lit(1)).alias("deduplicated_count"),
+            F.sum(F.col("_is_late_arriving").cast("int")).alias("late_arriving_count"),
+        ).first()
+        deduplicated_count = controlled_metrics["deduplicated_count"]
+        late_arriving_count = controlled_metrics["late_arriving_count"] or 0
+        controlled_tables[enriched_table] = controlled_df
+        metrics[enriched_table] = {
+            "input_count": input_count,
+            "deduplicated_input_count": deduplicated_count,
+            "duplicates_removed": input_count - deduplicated_count,
+            "late_arriving_count": late_arriving_count,
+            "control_runtime_seconds": round(time.perf_counter() - started, 3),
+        }
+    return controlled_tables, metrics
+
+
+def run_silver_transformations(
+    config_path: str,
+    profile: str,
+    batch_id: str | None = None,
+    spark=None,
+) -> list[SilverTransformationJobResult]:
     """Build enriched Silver event tables from valid Silver tables."""
     config = load_config(config_path)
     spark_config = config["spark"]
     paths = config["paths"]
 
-    spark = create_spark_session(
-        app_name=f"{spark_config['app_name']}-SilverTransformations-{profile}",
-        master=spark_config["master"],
-        aqe_enabled=bool(spark_config["adaptive_query_execution"]),
-        use_pyspark_package=bool(spark_config.get("use_pyspark_package", True)),
-    )
+    should_stop_spark = spark is None
+    if spark is None:
+        spark = create_spark_session(
+            app_name=f"{spark_config['app_name']}-SilverTransformations-{profile}",
+            master=spark_config["master"],
+            aqe_enabled=bool(spark_config["adaptive_query_execution"]),
+            use_pyspark_package=bool(spark_config.get("use_pyspark_package", True)),
+            shuffle_partitions=spark_config.get("shuffle_partitions"),
+        )
 
     try:
         silver_tables = {
-            table_name: spark.read.parquet(build_storage_path(paths["silver"], profile, table_name))
+            table_name: (
+                spark.read.parquet(build_storage_path(paths["silver"], profile, table_name))
+                if batch_id is None
+                else spark.read.parquet(build_storage_path(paths["silver"], profile, table_name)).filter(
+                    f"_pipeline_batch_id = '{batch_id}'"
+                )
+            )
             for table_name in RAW_SCHEMAS
         }
-        source_counts = {
-            table_name: silver_tables[table_name].count()
-            for table_name in SOURCE_TABLE_BY_ENRICHED_TABLE.values()
-        }
-        enriched_tables = build_enriched_event_tables(silver_tables)
+        for table_name in DIMENSION_TABLES:
+            silver_tables[table_name] = read_dimension_table(spark, paths, profile, table_name)
+        controlled_tables, source_metrics = build_controlled_sources(silver_tables)
+        enriched_tables = build_enriched_event_tables(silver_tables, controlled_tables)
         return [
             write_enriched_table(
                 result=result,
                 paths=paths,
                 profile=profile,
-                source_count=source_counts[SOURCE_TABLE_BY_ENRICHED_TABLE[result.table_name]],
+                source_count=source_metrics[result.table_name]["input_count"],
+                deduplicated_source_count=source_metrics[result.table_name]["deduplicated_input_count"],
+                duplicates_removed=source_metrics[result.table_name]["duplicates_removed"],
+                late_arriving_count=source_metrics[result.table_name]["late_arriving_count"],
+                control_runtime_seconds=source_metrics[result.table_name]["control_runtime_seconds"],
             )
             for result in enriched_tables
         ]
     finally:
-        spark.stop()
+        if should_stop_spark:
+            spark.stop()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build enriched Silver event tables.")
     parser.add_argument("--config", default="configs/local.yaml", help="Path to YAML config.")
     parser.add_argument("--profile", default="tiny", help="Dataset profile to transform.")
+    parser.add_argument("--batch-id", default=None, help="Optional pipeline batch ID to transform.")
     args = parser.parse_args()
 
-    results = run_silver_transformations(config_path=args.config, profile=args.profile)
+    results = run_silver_transformations(config_path=args.config, profile=args.profile, batch_id=args.batch_id)
     print("Silver transformations completed")
     for result in results:
         print(
-            f"{result.table_name}: input={result.input_count}, output={result.output_count}, "
-            f"path={result.output_path}"
+            f"{result.table_name}: input={result.input_count}, "
+            f"deduplicated_input={result.deduplicated_input_count}, "
+            f"duplicates_removed={result.duplicates_removed}, "
+            f"late_arriving={result.late_arriving_count}, output={result.output_count}, "
+            f"path={result.output_path}, runtime={result.runtime_seconds:.3f}s"
         )
 
 

@@ -6,7 +6,13 @@ import os
 import sys
 
 
-def create_spark_session(app_name: str, master: str, aqe_enabled: bool, use_pyspark_package: bool = True):
+def create_spark_session(
+    app_name: str,
+    master: str,
+    aqe_enabled: bool,
+    use_pyspark_package: bool = True,
+    shuffle_partitions: int | None = None,
+):
     """Create a local or cluster SparkSession from configuration values."""
     if use_pyspark_package:
         os.environ.pop("SPARK_HOME", None)
@@ -16,10 +22,13 @@ def create_spark_session(app_name: str, master: str, aqe_enabled: bool, use_pysp
 
     from pyspark.sql import SparkSession
 
-    return (
+    builder = (
         SparkSession.builder.appName(app_name)
         .master(master)
         .config("spark.sql.adaptive.enabled", str(aqe_enabled).lower())
+        .config("spark.sql.sources.partitionOverwriteMode", "dynamic")
         .config("spark.hadoop.fs.defaultFS", "file:///")
-        .getOrCreate()
     )
+    if shuffle_partitions is not None:
+        builder = builder.config("spark.sql.shuffle.partitions", str(shuffle_partitions))
+    return builder.getOrCreate()

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
+from pyspark.storagelevel import StorageLevel
 
 from src.quality.rules import (
     MAX_SIGNAL_STRENGTH_DBM,
@@ -39,6 +40,7 @@ class TableQualityResult:
     table_name: str
     valid: DataFrame
     invalid: DataFrame
+    classified: DataFrame | None = None
 
 
 def add_key_count(df: DataFrame, key_column: str) -> DataFrame:
@@ -56,23 +58,37 @@ def add_reference_key(
 ) -> DataFrame:
     """Attach a reference key column for existence validation."""
     keys = ref_df.select(F.col(ref_column).alias(alias)).dropDuplicates()
-    return df.join(keys, F.col(left_column) == F.col(alias), "left")
+    return df.join(F.broadcast(keys), F.col(left_column) == F.col(alias), "left")
+
+
+def persist_valid_parent(result: TableQualityResult) -> TableQualityResult:
+    """Persist reusable valid parent rows for cascading child-table validation."""
+    result.valid.persist(StorageLevel.MEMORY_AND_DISK)
+    return result
+
+
+def unpersist_valid_parents(results: list[TableQualityResult]) -> None:
+    """Release cached valid parent rows after cascading validation finishes."""
+    for result in results:
+        result.valid.unpersist()
 
 
 def finalize_validation(df: DataFrame, table_name: str, drop_columns: set[str]) -> TableQualityResult:
     """Split a validation DataFrame into valid and invalid records."""
     selected = df.select(*[column for column in df.columns if column not in drop_columns])
+    classified = selected.withColumn("_is_quality_valid", F.size(F.col("_rejection_reasons")) == 0)
     valid = (
-        selected.filter(F.size(F.col("_rejection_reasons")) == 0)
-        .drop("_rejection_reasons")
+        classified.filter(F.col("_is_quality_valid"))
+        .drop("_rejection_reasons", "_is_quality_valid")
         .withColumn("_silver_loaded_at", F.current_timestamp())
     )
     invalid = (
-        selected.filter(F.size(F.col("_rejection_reasons")) > 0)
+        classified.filter(~F.col("_is_quality_valid"))
+        .drop("_is_quality_valid")
         .withColumn("_quarantined_at", F.current_timestamp())
         .withColumn("_source_table", F.lit(table_name))
     )
-    return TableQualityResult(table_name=table_name, valid=valid, invalid=invalid)
+    return TableQualityResult(table_name=table_name, valid=valid, invalid=invalid, classified=classified)
 
 
 def validate_regions(regions: DataFrame) -> TableQualityResult:
@@ -197,7 +213,7 @@ def validate_network_events(
     subscribers: DataFrame,
     devices: DataFrame,
 ) -> TableQualityResult:
-    df = add_key_count(network_events, "event_id")
+    df = network_events
     df = add_reference_key(df, towers, "tower_id", "tower_id", "_ref_tower_id")
     df = add_reference_key(df, subscribers, "subscriber_id", "subscriber_id", "_ref_subscriber_id")
     df = add_reference_key(df, devices, "device_id", "device_id", "_ref_device_id")
@@ -205,7 +221,6 @@ def validate_network_events(
         "_rejection_reasons",
         collect_rejection_reasons(
             reason_when(is_blank("event_id"), "event_id_missing"),
-            reason_when(F.col("_count_event_id") > 1, "event_id_duplicate"),
             reason_when(is_blank("subscriber_id"), "subscriber_id_missing"),
             reason_when(is_blank("device_id"), "device_id_missing"),
             reason_when(is_blank("tower_id"), "tower_id_missing"),
@@ -229,12 +244,12 @@ def validate_network_events(
     return finalize_validation(
         df,
         "network_events",
-        {"_count_event_id", "_ref_tower_id", "_ref_subscriber_id", "_ref_device_id"},
+        {"_ref_tower_id", "_ref_subscriber_id", "_ref_device_id"},
     )
 
 
 def validate_calls(calls: DataFrame, towers: DataFrame, subscribers: DataFrame, devices: DataFrame) -> TableQualityResult:
-    df = add_key_count(calls, "call_id")
+    df = calls
     df = add_reference_key(df, towers, "tower_id", "tower_id", "_ref_tower_id")
     df = add_reference_key(df, subscribers, "subscriber_id", "subscriber_id", "_ref_subscriber_id")
     df = add_reference_key(df, devices, "device_id", "device_id", "_ref_device_id")
@@ -242,7 +257,6 @@ def validate_calls(calls: DataFrame, towers: DataFrame, subscribers: DataFrame, 
         "_rejection_reasons",
         collect_rejection_reasons(
             reason_when(is_blank("call_id"), "call_id_missing"),
-            reason_when(F.col("_count_call_id") > 1, "call_id_duplicate"),
             reason_when(is_blank("subscriber_id"), "subscriber_id_missing"),
             reason_when(is_blank("device_id"), "device_id_missing"),
             reason_when(is_blank("tower_id"), "tower_id_missing"),
@@ -262,7 +276,7 @@ def validate_calls(calls: DataFrame, towers: DataFrame, subscribers: DataFrame, 
             reason_when(F.col("device_id").isNotNull() & F.col("_ref_device_id").isNull(), "device_id_unknown"),
         ),
     )
-    return finalize_validation(df, "calls", {"_count_call_id", "_ref_tower_id", "_ref_subscriber_id", "_ref_device_id"})
+    return finalize_validation(df, "calls", {"_ref_tower_id", "_ref_subscriber_id", "_ref_device_id"})
 
 
 def validate_data_sessions(
@@ -271,7 +285,7 @@ def validate_data_sessions(
     subscribers: DataFrame,
     devices: DataFrame,
 ) -> TableQualityResult:
-    df = add_key_count(data_sessions, "session_id")
+    df = data_sessions
     df = add_reference_key(df, towers, "tower_id", "tower_id", "_ref_tower_id")
     df = add_reference_key(df, subscribers, "subscriber_id", "subscriber_id", "_ref_subscriber_id")
     df = add_reference_key(df, devices, "device_id", "device_id", "_ref_device_id")
@@ -279,7 +293,6 @@ def validate_data_sessions(
         "_rejection_reasons",
         collect_rejection_reasons(
             reason_when(is_blank("session_id"), "session_id_missing"),
-            reason_when(F.col("_count_session_id") > 1, "session_id_duplicate"),
             reason_when(is_blank("subscriber_id"), "subscriber_id_missing"),
             reason_when(is_blank("device_id"), "device_id_missing"),
             reason_when(is_blank("tower_id"), "tower_id_missing"),
@@ -304,18 +317,17 @@ def validate_data_sessions(
     return finalize_validation(
         df,
         "data_sessions",
-        {"_count_session_id", "_ref_tower_id", "_ref_subscriber_id", "_ref_device_id"},
+        {"_ref_tower_id", "_ref_subscriber_id", "_ref_device_id"},
     )
 
 
 def validate_tower_alarms(tower_alarms: DataFrame, towers: DataFrame) -> TableQualityResult:
-    df = add_key_count(tower_alarms, "alarm_id")
+    df = tower_alarms
     df = add_reference_key(df, towers, "tower_id", "tower_id", "_ref_tower_id")
     df = df.withColumn(
         "_rejection_reasons",
         collect_rejection_reasons(
             reason_when(is_blank("alarm_id"), "alarm_id_missing"),
-            reason_when(F.col("_count_alarm_id") > 1, "alarm_id_duplicate"),
             reason_when(is_blank("tower_id"), "tower_id_missing"),
             reason_when(F.col("tower_id").isNotNull() & F.col("_ref_tower_id").isNull(), "tower_id_unknown"),
             reason_when(F.col("alarm_timestamp").isNull(), "alarm_timestamp_missing"),
@@ -330,25 +342,54 @@ def validate_tower_alarms(tower_alarms: DataFrame, towers: DataFrame) -> TableQu
             reason_when(is_blank("description"), "description_missing"),
         ),
     )
-    return finalize_validation(df, "tower_alarms", {"_count_alarm_id", "_ref_tower_id"})
+    return finalize_validation(df, "tower_alarms", {"_ref_tower_id"})
 
 
 def validate_all_tables(bronze_tables: dict[str, DataFrame]) -> list[TableQualityResult]:
-    """Validate every first-version TowerIQ table."""
-    regions = bronze_tables["regions"]
-    service_plans = bronze_tables["service_plans"]
-    towers = bronze_tables["towers"]
-    subscribers = bronze_tables["subscribers"]
-    devices = bronze_tables["devices"]
+    """Validate every first-version TowerIQ table.
+
+    Parent dimension tables are validated first. Child tables then validate
+    foreign keys against the valid parent records, not against dirty Bronze
+    records that may later be quarantined.
+    """
+    regions_result = validate_regions(bronze_tables["regions"])
+    service_plans_result = validate_service_plans(bronze_tables["service_plans"])
+    towers_result = validate_towers(bronze_tables["towers"], regions_result.valid)
+    subscribers_result = validate_subscribers(
+        bronze_tables["subscribers"],
+        regions_result.valid,
+        service_plans_result.valid,
+    )
+    devices_result = validate_devices(bronze_tables["devices"], subscribers_result.valid)
+
+    network_events_result = validate_network_events(
+        bronze_tables["network_events"],
+        towers_result.valid,
+        subscribers_result.valid,
+        devices_result.valid,
+    )
+    calls_result = validate_calls(
+        bronze_tables["calls"],
+        towers_result.valid,
+        subscribers_result.valid,
+        devices_result.valid,
+    )
+    data_sessions_result = validate_data_sessions(
+        bronze_tables["data_sessions"],
+        towers_result.valid,
+        subscribers_result.valid,
+        devices_result.valid,
+    )
+    tower_alarms_result = validate_tower_alarms(bronze_tables["tower_alarms"], towers_result.valid)
 
     return [
-        validate_regions(regions),
-        validate_service_plans(service_plans),
-        validate_towers(towers, regions),
-        validate_subscribers(subscribers, regions, service_plans),
-        validate_devices(devices, subscribers),
-        validate_network_events(bronze_tables["network_events"], towers, subscribers, devices),
-        validate_calls(bronze_tables["calls"], towers, subscribers, devices),
-        validate_data_sessions(bronze_tables["data_sessions"], towers, subscribers, devices),
-        validate_tower_alarms(bronze_tables["tower_alarms"], towers),
+        regions_result,
+        service_plans_result,
+        towers_result,
+        subscribers_result,
+        devices_result,
+        network_events_result,
+        calls_result,
+        data_sessions_result,
+        tower_alarms_result,
     ]

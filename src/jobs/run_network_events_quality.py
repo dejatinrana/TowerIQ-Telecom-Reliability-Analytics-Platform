@@ -33,6 +33,7 @@ def run_network_events_quality(config_path: str, profile: str) -> NetworkEventsQ
         master=spark_config["master"],
         aqe_enabled=bool(spark_config["adaptive_query_execution"]),
         use_pyspark_package=bool(spark_config.get("use_pyspark_package", True)),
+        shuffle_partitions=spark_config.get("shuffle_partitions"),
     )
 
     try:

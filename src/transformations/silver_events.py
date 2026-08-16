@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
+from src.transformations.scd2 import current_scd2_records
+from src.transformations.silver_controls import SILVER_EVENT_SPECS, apply_silver_event_controls
+
 
 @dataclass(frozen=True)
 class SilverEnrichmentResult:
@@ -87,21 +90,15 @@ def add_event_date_parts(df: DataFrame, timestamp_column: str) -> DataFrame:
 
 def enrich_network_events(
     network_events: DataFrame,
-    towers: DataFrame,
-    regions: DataFrame,
-    subscribers: DataFrame,
-    devices: DataFrame,
-    service_plans: DataFrame,
+    tower_context: DataFrame,
+    subscriber_context: DataFrame,
 ) -> DataFrame:
     """Enrich valid network events with tower, region, subscriber, device, and plan context."""
-    tower_context = tower_region_context(towers, regions)
-    subscriber_context = subscriber_device_plan_context(subscribers, devices, service_plans)
-
     enriched = (
         network_events.alias("event")
-        .join(tower_context.alias("tower_ctx"), F.col("event.tower_id") == F.col("tower_ctx.tower_id"), "left")
+        .join(F.broadcast(tower_context).alias("tower_ctx"), F.col("event.tower_id") == F.col("tower_ctx.tower_id"), "left")
         .join(
-            subscriber_context.alias("sub_ctx"),
+            F.broadcast(subscriber_context).alias("sub_ctx"),
             (F.col("event.subscriber_id") == F.col("sub_ctx.subscriber_id"))
             & (F.col("event.device_id") == F.col("sub_ctx.device_id")),
             "left",
@@ -144,20 +141,15 @@ def enrich_network_events(
 
 def enrich_calls(
     calls: DataFrame,
-    towers: DataFrame,
-    regions: DataFrame,
-    subscribers: DataFrame,
-    devices: DataFrame,
-    service_plans: DataFrame,
+    tower_context: DataFrame,
+    subscriber_context: DataFrame,
 ) -> DataFrame:
     """Enrich valid calls with tower, region, subscriber, device, and plan context."""
-    tower_context = tower_region_context(towers, regions)
-    subscriber_context = subscriber_device_plan_context(subscribers, devices, service_plans)
     enriched = (
         calls.alias("call")
-        .join(tower_context.alias("tower_ctx"), F.col("call.tower_id") == F.col("tower_ctx.tower_id"), "left")
+        .join(F.broadcast(tower_context).alias("tower_ctx"), F.col("call.tower_id") == F.col("tower_ctx.tower_id"), "left")
         .join(
-            subscriber_context.alias("sub_ctx"),
+            F.broadcast(subscriber_context).alias("sub_ctx"),
             (F.col("call.subscriber_id") == F.col("sub_ctx.subscriber_id"))
             & (F.col("call.device_id") == F.col("sub_ctx.device_id")),
             "left",
@@ -196,20 +188,15 @@ def enrich_calls(
 
 def enrich_data_sessions(
     data_sessions: DataFrame,
-    towers: DataFrame,
-    regions: DataFrame,
-    subscribers: DataFrame,
-    devices: DataFrame,
-    service_plans: DataFrame,
+    tower_context: DataFrame,
+    subscriber_context: DataFrame,
 ) -> DataFrame:
     """Enrich valid data sessions with tower, region, subscriber, device, and plan context."""
-    tower_context = tower_region_context(towers, regions)
-    subscriber_context = subscriber_device_plan_context(subscribers, devices, service_plans)
     enriched = (
         data_sessions.alias("session")
-        .join(tower_context.alias("tower_ctx"), F.col("session.tower_id") == F.col("tower_ctx.tower_id"), "left")
+        .join(F.broadcast(tower_context).alias("tower_ctx"), F.col("session.tower_id") == F.col("tower_ctx.tower_id"), "left")
         .join(
-            subscriber_context.alias("sub_ctx"),
+            F.broadcast(subscriber_context).alias("sub_ctx"),
             (F.col("session.subscriber_id") == F.col("sub_ctx.subscriber_id"))
             & (F.col("session.device_id") == F.col("sub_ctx.device_id")),
             "left",
@@ -247,12 +234,11 @@ def enrich_data_sessions(
     )
 
 
-def enrich_tower_alarms(tower_alarms: DataFrame, towers: DataFrame, regions: DataFrame) -> DataFrame:
+def enrich_tower_alarms(tower_alarms: DataFrame, tower_context: DataFrame) -> DataFrame:
     """Enrich tower alarms with tower and region context."""
-    tower_context = tower_region_context(towers, regions)
     enriched = (
         tower_alarms.alias("alarm")
-        .join(tower_context.alias("tower_ctx"), F.col("alarm.tower_id") == F.col("tower_ctx.tower_id"), "left")
+        .join(F.broadcast(tower_context).alias("tower_ctx"), F.col("alarm.tower_id") == F.col("tower_ctx.tower_id"), "left")
         .select(
             F.col("alarm.*"),
             F.col("tower_ctx.region_id"),
@@ -274,50 +260,59 @@ def enrich_tower_alarms(tower_alarms: DataFrame, towers: DataFrame, regions: Dat
     )
 
 
-def build_enriched_event_tables(silver_tables: dict[str, DataFrame]) -> list[SilverEnrichmentResult]:
+def build_enriched_event_tables(
+    silver_tables: dict[str, DataFrame],
+    controlled_event_tables: dict[str, DataFrame] | None = None,
+) -> list[SilverEnrichmentResult]:
     """Build all enriched Silver event tables."""
+    controlled_event_tables = controlled_event_tables or {}
+
+    def controlled_event_table(enriched_table_name: str) -> DataFrame:
+        if enriched_table_name in controlled_event_tables:
+            return controlled_event_tables[enriched_table_name]
+        spec = SILVER_EVENT_SPECS[enriched_table_name]
+        return apply_silver_event_controls(silver_tables[spec.source_table], spec)
+
     regions = silver_tables["regions"]
-    towers = silver_tables["towers"]
-    service_plans = silver_tables["service_plans"]
-    subscribers = silver_tables["subscribers"]
-    devices = silver_tables["devices"]
+    towers = current_scd2_records(silver_tables["towers"])
+    service_plans = current_scd2_records(silver_tables["service_plans"])
+    subscribers = current_scd2_records(silver_tables["subscribers"])
+    devices = current_scd2_records(silver_tables["devices"])
+    regions = current_scd2_records(regions)
+    tower_context = tower_region_context(towers, regions)
+    subscriber_context = subscriber_device_plan_context(subscribers, devices, service_plans)
+    controlled_network_events = controlled_event_table("network_events_enriched")
+    controlled_calls = controlled_event_table("calls_enriched")
+    controlled_data_sessions = controlled_event_table("data_sessions_enriched")
+    controlled_tower_alarms = controlled_event_table("tower_alarms_enriched")
 
     return [
         SilverEnrichmentResult(
             "network_events_enriched",
             enrich_network_events(
-                silver_tables["network_events"],
-                towers,
-                regions,
-                subscribers,
-                devices,
-                service_plans,
+                controlled_network_events,
+                tower_context,
+                subscriber_context,
             ),
         ),
         SilverEnrichmentResult(
             "calls_enriched",
             enrich_calls(
-                silver_tables["calls"],
-                towers,
-                regions,
-                subscribers,
-                devices,
-                service_plans,
+                controlled_calls,
+                tower_context,
+                subscriber_context,
             ),
         ),
         SilverEnrichmentResult(
             "data_sessions_enriched",
             enrich_data_sessions(
-                silver_tables["data_sessions"],
-                towers,
-                regions,
-                subscribers,
-                devices,
-                service_plans,
+                controlled_data_sessions,
+                tower_context,
+                subscriber_context,
             ),
         ),
         SilverEnrichmentResult(
             "tower_alarms_enriched",
-            enrich_tower_alarms(silver_tables["tower_alarms"], towers, regions),
+            enrich_tower_alarms(controlled_tower_alarms, tower_context),
         ),
     ]

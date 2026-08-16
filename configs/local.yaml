@@ -5,6 +5,14 @@ spark:
   master: local[*]
   adaptive_query_execution: true
   use_pyspark_package: true
+  shuffle_partitions: 8
+
+quality:
+  output_partitions: 1
+
+audit:
+  count_bronze_inputs: true
+  count_gold_outputs: true
 
 paths:
   raw: data/raw
@@ -12,3 +20,6 @@ paths:
   silver: data/silver
   gold: data/gold
   quarantine: data/quarantine
+
+incremental:
+  registry_path: data/registry/batch_registry.json

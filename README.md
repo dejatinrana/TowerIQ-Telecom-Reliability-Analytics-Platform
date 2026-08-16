@@ -79,13 +79,19 @@ Current completed layers for the tiny profile:
 - First valid-record Silver layer created.
 - Enriched Silver event tables created for analytics.
 - First Gold KPI tables created.
+- Inspection notebooks created for Bronze, Silver, Quarantine, and Gold outputs.
+- Messy-data profile added for bad-record, duplicate, and late-arrival testing.
+- Silver hardening added for event deduplication, idempotent reruns,
+  late-arrival tracking, and optional schema evolution columns.
+- Incremental batch registry added with production-style partitioned writes.
 
 Next planned layer:
 
-- Additional Gold KPI refinement and baseline analytics review.
+- Manual KPI review through notebooks and then SCD Type 2 design.
 
 Useful project docs:
 
 - [Architecture](docs/architecture.md)
 - [Data Model](docs/data_model.md)
+- [Current Project State](docs/current_project_state.md)
 - [Gold KPI Question Bank](docs/gold_kpi_question_bank.md)

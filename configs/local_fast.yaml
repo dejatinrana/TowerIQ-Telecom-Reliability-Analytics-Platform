@@ -1,0 +1,25 @@
+# Local performance-focused Spark and pipeline settings.
+environment: local_fast
+spark:
+  app_name: TelecomNetworkReliabilityPlatform
+  master: local[*]
+  adaptive_query_execution: true
+  use_pyspark_package: true
+  shuffle_partitions: 8
+
+quality:
+  output_partitions: 1
+
+audit:
+  count_bronze_inputs: false
+  count_gold_outputs: false
+
+paths:
+  raw: data/raw
+  bronze: data/bronze
+  silver: data/silver
+  gold: data/gold
+  quarantine: data/quarantine
+
+incremental:
+  registry_path: data/registry/batch_registry.json

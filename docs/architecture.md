@@ -104,8 +104,25 @@ _source_table
 ```
 
 For the clean tiny baseline dataset, all records passed validation and `0`
-records were quarantined for every table. Bad-record injection will be added
-later so the quarantine path can be tested with intentionally invalid data.
+records were quarantined for every table.
+
+The `tiny_messy` profile intentionally injects invalid records so the quarantine
+path can be tested. This profile includes duplicate dimension keys, unknown
+foreign keys, unsupported values, bad timestamps, negative measures, invalid
+geography, and missing business values.
+
+Quality validation is cascading:
+
+```text
+regions and service_plans
+  -> towers and subscribers
+  -> devices
+  -> network_events, calls, data_sessions, tower_alarms
+```
+
+Child tables validate foreign keys against valid parent records, not just raw
+Bronze parent records. This matters because a bad parent dimension can make many
+dependent child records unsafe for analytics.
 
 ## Enriched Silver Transformations
 
@@ -175,28 +192,89 @@ The first enriched Silver run preserved source row counts:
 | `data_sessions_enriched` | 30,000 | 30,000 |
 | `tower_alarms_enriched` | 800 | 800 |
 
-## Silver Maturity Roadmap
+## Hardened Silver Controls
 
-The current Silver layer is a clean baseline:
+The Silver layer now applies first-version hardening controls before enrichment:
 
 ```text
 valid Bronze records
+  -> schema alignment
+  -> event deduplication
+  -> late-arrival tracking
   -> enriched Silver event tables
 ```
 
-More advanced Silver behavior will be added when the related messy-data
-scenarios are introduced.
+Current Silver controls:
+
+| Control | Current Behavior |
+| --- | --- |
+| Deduplication | Event/fact tables keep the latest record per business primary key. |
+| Idempotency | Enriched Silver outputs are overwritten deterministically on rerun. |
+| Late-arriving records | Records delayed by more than 24 hours are flagged. |
+| Schema evolution | Known optional columns are added when older batches do not contain them. |
+
+The added Silver metadata columns are:
+
+```text
+_silver_was_deduplicated
+_arrival_delay_hours
+_late_arrival_threshold_hours
+_is_late_arriving
+source_system
+producer_schema_version
+```
+
+Dimension duplicates are quarantined because reference data needs one trusted
+version. Fact/event duplicates are handled in Silver because operational event
+streams often deliver repeat records and Silver can apply a latest-record rule.
+
+The `tiny_messy` Silver run proved the controls:
+
+| Table | Duplicates Removed | Late-Arriving Records |
+| --- | --- |
+| `network_events_enriched` | 1 | 1 |
+| `calls_enriched` | 0 | 1 |
+| `data_sessions_enriched` | 1 | 1 |
+| `tower_alarms_enriched` | 1 | 1 |
+
+## Incremental Processing
+
+TowerIQ now uses a local batch registry for incremental control:
+
+```text
+data/registry/batch_registry.json
+```
+
+The registry prevents repeated processing of a completed batch:
+
+```text
+new batch_id       -> run Bronze, Quality, Silver, Gold
+completed batch_id -> skip
+force rerun        -> run again intentionally
+```
+
+The first implementation supports production-style partitioned writes:
+
+| Layer | Write Pattern |
+| --- | --- |
+| Bronze | Append records partitioned by `_pipeline_batch_id`. |
+| Quality valid Silver | Append valid records partitioned by `_pipeline_batch_id`. |
+| Quarantine | Append rejected records partitioned by `_pipeline_batch_id`. |
+| Enriched Silver | Append enriched records partitioned by `event_date` and `_pipeline_batch_id`. |
+| Gold | Recompute affected dates and dynamically overwrite only those `event_date` partitions. |
+
+This means the pipeline no longer needs to rewrite every output folder for every
+successful batch. Late-arriving events can identify older affected dates, and
+Gold can recompute those dates instead of rebuilding unrelated days.
 
 Future Silver improvements:
 
 | Scenario | Silver Work Needed |
 | --- | --- |
-| Duplicate events | Deduplicate by event-specific business keys. |
-| Duplicate batches | Make reruns safe and prevent repeated processing. |
-| Late-arriving data | Handle event time separately from ingestion time. |
-| Out-of-order events | Preserve event-time correctness in downstream tables. |
-| Bad reference data | Define enrichment behavior when dimensions are missing or invalid. |
-| Schema evolution | Support controlled source schema changes. |
+| Incremental batches | Process only new or changed partitions. |
+| Out-of-order events | Recompute affected time windows safely. |
+| More realistic duplicate batches | Track batch-level processing history. |
+| Schema evolution | Add stricter compatibility checks and schema registry behavior. |
 | SCD Type 2 | Join events to the correct historical dimension version. |
 
 Silver reminder:
@@ -204,6 +282,39 @@ Silver reminder:
 ```text
 When messy-data scenarios are introduced, the Silver layer must be revisited.
 ```
+
+## SCD Type 2 Dimension History
+
+TowerIQ builds SCD Type 2 history tables for core dimensions:
+
+```text
+data/silver/<profile>/scd2/regions/
+data/silver/<profile>/scd2/service_plans/
+data/silver/<profile>/scd2/towers/
+data/silver/<profile>/scd2/subscribers/
+data/silver/<profile>/scd2/devices/
+```
+
+SCD2 metadata columns:
+
+```text
+_scd_record_hash
+_scd_valid_from
+_scd_valid_to
+_scd_is_current
+_scd_loaded_at
+```
+
+The `tiny_scd2_demo` profile validates this behavior with two batches:
+
+```text
+2026-08-01 baseline batch
+2026-08-15 changed-dimension batch
+```
+
+For changed records, the old version ends on `2026-08-14` and the new version
+starts on `2026-08-15`. This proves that the project can preserve dimension
+history instead of overwriting reference data.
 
 ## Gold KPI Layer
 
@@ -258,6 +369,24 @@ The first Gold run created:
 
 See [Gold KPI Question Bank](gold_kpi_question_bank.md) for examples of the
 business questions these tables can answer.
+
+## Analysis Notebooks
+
+TowerIQ includes notebooks for manually inspecting each pipeline layer after the
+jobs have written Parquet outputs.
+
+Current notebooks:
+
+```text
+notebooks/bronze_layer_inspection.ipynb
+notebooks/silver_layer_inspection.ipynb
+notebooks/quarantine_layer_inspection.ipynb
+notebooks/gold_kpi_baseline_analysis.ipynb
+```
+
+The notebooks are not separate pipeline jobs. They are analysis workspaces used
+to query the existing Bronze, Silver, Quarantine, and Gold Parquet files and
+confirm that the data makes sense layer by layer.
 
 The first dataset design follows a star-schema-inspired model. Fact tables store
 network activity such as calls, data sessions, network events, and tower alarms.
