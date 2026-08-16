@@ -11,6 +11,9 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 from src.ingestion.schemas import RAW_SCHEMAS
+from src.utils.partitioning import apply_output_partition_plan
+from src.utils.partitioning import get_storage_path_size_bytes
+from src.utils.partitioning import plan_output_partitions
 
 
 def build_storage_path(base_path: str, *parts: str) -> str:
@@ -36,12 +39,19 @@ class BronzeIngestionResult:
     output_path: str
     runtime_seconds: float
     audit_count_enabled: bool
+    source_size_bytes: int | None
+    planned_output_partitions: int | None
+
+
+def raw_table_path(raw_base_path: str, profile: str, table_name: str) -> str:
+    """Return the raw input path for one source table."""
+    return build_storage_path(raw_base_path, profile, f"{table_name}.csv")
 
 
 def read_raw_table(spark: SparkSession, raw_base_path: str, profile: str, table_name: str) -> DataFrame:
     """Read one raw CSV table with its explicit schema."""
     schema = RAW_SCHEMAS[table_name]
-    input_path = build_storage_path(raw_base_path, profile, f"{table_name}.csv")
+    input_path = raw_table_path(raw_base_path, profile, table_name)
     return (
         spark.read.option("header", True)
         .option("mode", "FAILFAST")
@@ -61,10 +71,17 @@ def add_bronze_metadata(df: DataFrame, table_name: str, profile: str, batch_id: 
     )
 
 
-def write_bronze_table(df: DataFrame, bronze_base_path: str, profile: str, table_name: str) -> str:
+def write_bronze_table(
+    df: DataFrame,
+    bronze_base_path: str,
+    profile: str,
+    table_name: str,
+    output_partitions: int | None = None,
+) -> str:
     """Write one Bronze table as Parquet and return the output path."""
     output_path = build_storage_path(bronze_base_path, profile, table_name)
-    df.write.mode("append").partitionBy("_pipeline_batch_id").parquet(output_path)
+    output_df = apply_output_partition_plan(df, output_partitions)
+    output_df.write.mode("append").partitionBy("_pipeline_batch_id").parquet(output_path)
     return output_path
 
 
@@ -76,14 +93,41 @@ def ingest_table(
     table_name: str,
     batch_id: str | None = None,
     count_inputs: bool = True,
+    partition_config: dict | None = None,
 ) -> BronzeIngestionResult:
     """Ingest one raw CSV table to Bronze Parquet."""
     started = time.perf_counter()
     resolved_batch_id = batch_id or f"{profile}_manual"
+    input_path = raw_table_path(raw_base_path, profile, table_name)
+    source_size_bytes = get_storage_path_size_bytes(spark, input_path)
+    partition_settings = partition_config or {}
+    partition_plan = plan_output_partitions(
+        source_size_bytes=source_size_bytes,
+        strategy=str(partition_settings.get("strategy", "none")),
+        target_file_size_mb=int(partition_settings.get("target_file_size_mb", 128)),
+        min_partitions=int(partition_settings.get("min_partitions", 1)),
+        max_partitions=int(partition_settings.get("max_partitions", 64)),
+        tiny_file_threshold_mb=(
+            int(partition_settings["tiny_file_threshold_mb"])
+            if "tiny_file_threshold_mb" in partition_settings
+            else None
+        ),
+        tiny_file_partitions=(
+            int(partition_settings["tiny_file_partitions"])
+            if "tiny_file_partitions" in partition_settings
+            else None
+        ),
+    )
     raw_df = read_raw_table(spark, raw_base_path, profile, table_name)
     bronze_df = add_bronze_metadata(raw_df, table_name, profile, resolved_batch_id)
     raw_count = raw_df.count() if count_inputs else None
-    output_path = write_bronze_table(bronze_df, bronze_base_path, profile, table_name)
+    output_path = write_bronze_table(
+        bronze_df,
+        bronze_base_path,
+        profile,
+        table_name,
+        output_partitions=partition_plan.planned_partitions,
+    )
 
     return BronzeIngestionResult(
         table_name=table_name,
@@ -92,6 +136,8 @@ def ingest_table(
         output_path=output_path,
         runtime_seconds=round(time.perf_counter() - started, 3),
         audit_count_enabled=count_inputs,
+        source_size_bytes=source_size_bytes,
+        planned_output_partitions=partition_plan.planned_partitions,
     )
 
 
@@ -103,6 +149,7 @@ def ingest_all_tables(
     table_names: list[str] | None = None,
     batch_id: str | None = None,
     count_inputs: bool = True,
+    partition_config: dict | None = None,
 ) -> list[BronzeIngestionResult]:
     """Ingest all configured raw tables to Bronze Parquet."""
     selected_tables = table_names or list(RAW_SCHEMAS.keys())
@@ -115,6 +162,7 @@ def ingest_all_tables(
             table_name=table_name,
             batch_id=batch_id,
             count_inputs=count_inputs,
+            partition_config=partition_config,
         )
         for table_name in selected_tables
     ]

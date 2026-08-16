@@ -9,9 +9,41 @@ spark:
 
 quality:
   output_partitions: 1
+  persist_classified_tables:
+    - network_events
+    - calls
+    - data_sessions
+  output_partitioning:
+    strategy: auto
+    target_file_size_mb: 128
+    min_partitions: 1
+    max_partitions: 64
+
+silver:
+  output_partitioning:
+    strategy: none
+    tiny_file_threshold_mb: 1
+    tiny_file_partitions: 1
+    target_file_size_mb: 128
+    min_partitions: 2
+    max_partitions: 64
+
+bronze:
+  output_partitioning:
+    strategy: auto
+    tiny_file_threshold_mb: 1
+    tiny_file_partitions: 1
+    target_file_size_mb: 128
+    min_partitions: 2
+    max_partitions: 64
+
+gold:
+  persist_tower_daily_for_region: false
 
 audit:
   count_bronze_inputs: true
+  count_quality_outputs: true
+  count_silver_outputs: true
   count_gold_outputs: true
 
 paths:

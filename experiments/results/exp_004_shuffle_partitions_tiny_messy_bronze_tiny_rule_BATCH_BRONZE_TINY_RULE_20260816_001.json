@@ -1,0 +1,383 @@
+{
+  "batch_id": "BATCH_BRONZE_TINY_RULE_20260816_001",
+  "config_path": "configs/local_fast.yaml",
+  "created_at": "2026-08-16T05:41:38+00:00",
+  "experiment_id": "EXP-004",
+  "experiment_name": "Shuffle Partition Tuning",
+  "improvement_percent": 58.84,
+  "improvement_seconds": 40.299,
+  "optimization": "set_spark_sql_shuffle_partitions",
+  "previous_runtime_seconds": 68.487,
+  "profile": "tiny_messy_bronze_tiny_rule",
+  "run_id": "67d071d2-cd5c-4704-a3e8-27c9722fd7f3",
+  "shuffle_partitions": 8,
+  "stages": [
+    {
+      "results": [
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/bronze/tiny_messy_bronze_tiny_rule/regions",
+          "planned_output_partitions": 1,
+          "raw_count": null,
+          "runtime_seconds": 2.249,
+          "source_size_bytes": 963,
+          "table_name": "regions"
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/bronze/tiny_messy_bronze_tiny_rule/towers",
+          "planned_output_partitions": 1,
+          "raw_count": null,
+          "runtime_seconds": 0.288,
+          "source_size_bytes": 8965,
+          "table_name": "towers"
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/bronze/tiny_messy_bronze_tiny_rule/service_plans",
+          "planned_output_partitions": 1,
+          "raw_count": null,
+          "runtime_seconds": 0.229,
+          "source_size_bytes": 685,
+          "table_name": "service_plans"
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/bronze/tiny_messy_bronze_tiny_rule/subscribers",
+          "planned_output_partitions": 1,
+          "raw_count": null,
+          "runtime_seconds": 0.29,
+          "source_size_bytes": 349811,
+          "table_name": "subscribers"
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/bronze/tiny_messy_bronze_tiny_rule/devices",
+          "planned_output_partitions": 1,
+          "raw_count": null,
+          "runtime_seconds": 0.297,
+          "source_size_bytes": 391793,
+          "table_name": "devices"
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/bronze/tiny_messy_bronze_tiny_rule/network_events",
+          "planned_output_partitions": 2,
+          "raw_count": null,
+          "runtime_seconds": 0.667,
+          "source_size_bytes": 8446205,
+          "table_name": "network_events"
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/bronze/tiny_messy_bronze_tiny_rule/calls",
+          "planned_output_partitions": 2,
+          "raw_count": null,
+          "runtime_seconds": 0.513,
+          "source_size_bytes": 3447357,
+          "table_name": "calls"
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/bronze/tiny_messy_bronze_tiny_rule/data_sessions",
+          "planned_output_partitions": 2,
+          "raw_count": null,
+          "runtime_seconds": 0.563,
+          "source_size_bytes": 5839205,
+          "table_name": "data_sessions"
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/bronze/tiny_messy_bronze_tiny_rule/tower_alarms",
+          "planned_output_partitions": 1,
+          "raw_count": null,
+          "runtime_seconds": 0.275,
+          "source_size_bytes": 158243,
+          "table_name": "tower_alarms"
+        }
+      ],
+      "runtime_seconds": 5.376,
+      "stage_name": "bronze"
+    },
+    {
+      "results": [
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "invalid_count": null,
+          "persisted_for_write": false,
+          "planned_output_partitions": 1,
+          "quarantine_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/quarantine/tiny_messy_bronze_tiny_rule/regions",
+          "runtime_seconds": 1.23,
+          "silver_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/regions",
+          "source_size_bytes": 4704,
+          "table_name": "regions",
+          "valid_count": null,
+          "validation_runtime_seconds": 0.138,
+          "write_runtime_seconds": 1.092
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "invalid_count": null,
+          "persisted_for_write": false,
+          "planned_output_partitions": 1,
+          "quarantine_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/quarantine/tiny_messy_bronze_tiny_rule/service_plans",
+          "runtime_seconds": 0.742,
+          "silver_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/service_plans",
+          "source_size_bytes": 4410,
+          "table_name": "service_plans",
+          "valid_count": null,
+          "validation_runtime_seconds": 0.113,
+          "write_runtime_seconds": 0.629
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "invalid_count": null,
+          "persisted_for_write": false,
+          "planned_output_partitions": 1,
+          "quarantine_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/quarantine/tiny_messy_bronze_tiny_rule/towers",
+          "runtime_seconds": 0.918,
+          "silver_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/towers",
+          "source_size_bytes": 8148,
+          "table_name": "towers",
+          "valid_count": null,
+          "validation_runtime_seconds": 0.168,
+          "write_runtime_seconds": 0.75
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "invalid_count": null,
+          "persisted_for_write": false,
+          "planned_output_partitions": 1,
+          "quarantine_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/quarantine/tiny_messy_bronze_tiny_rule/subscribers",
+          "runtime_seconds": 1.044,
+          "silver_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/subscribers",
+          "source_size_bytes": 55053,
+          "table_name": "subscribers",
+          "valid_count": null,
+          "validation_runtime_seconds": 0.133,
+          "write_runtime_seconds": 0.911
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "invalid_count": null,
+          "persisted_for_write": false,
+          "planned_output_partitions": 1,
+          "quarantine_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/quarantine/tiny_messy_bronze_tiny_rule/devices",
+          "runtime_seconds": 0.907,
+          "silver_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/devices",
+          "source_size_bytes": 73200,
+          "table_name": "devices",
+          "valid_count": null,
+          "validation_runtime_seconds": 0.144,
+          "write_runtime_seconds": 0.763
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "invalid_count": null,
+          "persisted_for_write": true,
+          "planned_output_partitions": 1,
+          "quarantine_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/quarantine/tiny_messy_bronze_tiny_rule/network_events",
+          "runtime_seconds": 1.81,
+          "silver_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/network_events",
+          "source_size_bytes": 1692300,
+          "table_name": "network_events",
+          "valid_count": null,
+          "validation_runtime_seconds": 0.19,
+          "write_runtime_seconds": 1.62
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "invalid_count": null,
+          "persisted_for_write": true,
+          "planned_output_partitions": 1,
+          "quarantine_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/quarantine/tiny_messy_bronze_tiny_rule/calls",
+          "runtime_seconds": 1.241,
+          "silver_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/calls",
+          "source_size_bytes": 948850,
+          "table_name": "calls",
+          "valid_count": null,
+          "validation_runtime_seconds": 0.213,
+          "write_runtime_seconds": 1.028
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "invalid_count": null,
+          "persisted_for_write": true,
+          "planned_output_partitions": 1,
+          "quarantine_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/quarantine/tiny_messy_bronze_tiny_rule/data_sessions",
+          "runtime_seconds": 1.458,
+          "silver_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/data_sessions",
+          "source_size_bytes": 1752871,
+          "table_name": "data_sessions",
+          "valid_count": null,
+          "validation_runtime_seconds": 0.188,
+          "write_runtime_seconds": 1.27
+        },
+        {
+          "audit_count_enabled": false,
+          "bronze_count": null,
+          "invalid_count": null,
+          "persisted_for_write": false,
+          "planned_output_partitions": 1,
+          "quarantine_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/quarantine/tiny_messy_bronze_tiny_rule/tower_alarms",
+          "runtime_seconds": 0.8,
+          "silver_output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/tower_alarms",
+          "source_size_bytes": 35251,
+          "table_name": "tower_alarms",
+          "valid_count": null,
+          "validation_runtime_seconds": 0.11,
+          "write_runtime_seconds": 0.69
+        }
+      ],
+      "runtime_seconds": 10.975,
+      "stage_name": "quality"
+    },
+    {
+      "results": [
+        {
+          "current_count": 7,
+          "output_count": 7,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/scd2/regions",
+          "runtime_seconds": 0.577,
+          "table_name": "regions"
+        },
+        {
+          "current_count": 5,
+          "output_count": 5,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/scd2/service_plans",
+          "runtime_seconds": 0.489,
+          "table_name": "service_plans"
+        },
+        {
+          "current_count": 67,
+          "output_count": 67,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/scd2/towers",
+          "runtime_seconds": 0.361,
+          "table_name": "towers"
+        },
+        {
+          "current_count": 3676,
+          "output_count": 3676,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/scd2/subscribers",
+          "runtime_seconds": 0.519,
+          "table_name": "subscribers"
+        },
+        {
+          "current_count": 4035,
+          "output_count": 4035,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/scd2/devices",
+          "runtime_seconds": 0.577,
+          "table_name": "devices"
+        }
+      ],
+      "runtime_seconds": 3.15,
+      "stage_name": "scd2"
+    },
+    {
+      "results": [
+        {
+          "control_runtime_seconds": 0.409,
+          "deduplicated_input_count": 30724,
+          "duplicates_removed": 1,
+          "input_count": 30725,
+          "late_arriving_count": 1,
+          "output_count": 30724,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/enriched/network_events_enriched",
+          "runtime_seconds": 1.283,
+          "table_name": "network_events_enriched",
+          "write_runtime_seconds": 0.874
+        },
+        {
+          "control_runtime_seconds": 0.204,
+          "deduplicated_input_count": 12336,
+          "duplicates_removed": 0,
+          "input_count": 12336,
+          "late_arriving_count": 1,
+          "output_count": 12336,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/enriched/calls_enriched",
+          "runtime_seconds": 1.043,
+          "table_name": "calls_enriched",
+          "write_runtime_seconds": 0.839
+        },
+        {
+          "control_runtime_seconds": 0.209,
+          "deduplicated_input_count": 18383,
+          "duplicates_removed": 1,
+          "input_count": 18384,
+          "late_arriving_count": 1,
+          "output_count": 18383,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/enriched/data_sessions_enriched",
+          "runtime_seconds": 1.128,
+          "table_name": "data_sessions_enriched",
+          "write_runtime_seconds": 0.919
+        },
+        {
+          "control_runtime_seconds": 0.17,
+          "deduplicated_input_count": 673,
+          "duplicates_removed": 1,
+          "input_count": 674,
+          "late_arriving_count": 1,
+          "output_count": 673,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/silver/tiny_messy_bronze_tiny_rule/enriched/tower_alarms_enriched",
+          "runtime_seconds": 0.596,
+          "table_name": "tower_alarms_enriched",
+          "write_runtime_seconds": 0.426
+        }
+      ],
+      "runtime_seconds": 5.259,
+      "stage_name": "silver"
+    },
+    {
+      "results": [
+        {
+          "audit_count_enabled": false,
+          "output_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/gold/tiny_messy_bronze_tiny_rule/tower_daily_kpis",
+          "runtime_seconds": 0.685,
+          "table_name": "tower_daily_kpis"
+        },
+        {
+          "audit_count_enabled": false,
+          "output_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/gold/tiny_messy_bronze_tiny_rule/region_daily_kpis",
+          "runtime_seconds": 0.895,
+          "table_name": "region_daily_kpis"
+        },
+        {
+          "audit_count_enabled": false,
+          "output_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/gold/tiny_messy_bronze_tiny_rule/network_type_daily_kpis",
+          "runtime_seconds": 0.518,
+          "table_name": "network_type_daily_kpis"
+        },
+        {
+          "audit_count_enabled": false,
+          "output_count": null,
+          "output_path": "/Users/jatin/Desktop/Placement/All Projects/Final Great Projects/TowerIQ/data/gold/tiny_messy_bronze_tiny_rule/subscriber_segment_daily_kpis",
+          "runtime_seconds": 0.412,
+          "table_name": "subscriber_segment_daily_kpis"
+        }
+      ],
+      "runtime_seconds": 3.428,
+      "stage_name": "gold"
+    }
+  ],
+  "total_runtime_seconds": 28.188
+}

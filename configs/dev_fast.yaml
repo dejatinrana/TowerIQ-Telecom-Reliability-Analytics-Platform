@@ -1,5 +1,9 @@
-# Local performance-focused Spark and pipeline settings.
-environment: local_fast
+# Fast local development settings.
+#
+# This profile is for quick code feedback on small datasets. It keeps the same
+# local data lake paths as the main config, but disables nonessential audit
+# counts that are useful for checkpoints and expensive during repeated edits.
+environment: dev_fast
 spark:
   app_name: TelecomNetworkReliabilityPlatform
   master: local[*]
@@ -55,3 +59,9 @@ paths:
 
 incremental:
   registry_path: data/registry/batch_registry.json
+
+dev_workflow:
+  default_profile: tiny_messy
+  default_batch_id: DEV_FAST_BATCH
+  default_affected_tables:
+    - network_events

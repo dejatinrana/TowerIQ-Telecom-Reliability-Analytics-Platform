@@ -21,6 +21,7 @@ def run_bronze_ingestion(
     spark_config = config["spark"]
     paths = config["paths"]
     audit_config = config.get("audit", {})
+    bronze_config = config.get("bronze", {})
     count_bronze_inputs = bool(audit_config.get("count_bronze_inputs", True))
 
     should_stop_spark = spark is None
@@ -41,6 +42,7 @@ def run_bronze_ingestion(
             profile=profile,
             batch_id=batch_id,
             count_inputs=count_bronze_inputs,
+            partition_config=bronze_config.get("output_partitioning"),
         )
     finally:
         if should_stop_spark:
@@ -65,7 +67,10 @@ def main() -> None:
         print(
             f"{result.table_name}: raw={result.raw_count}, "
             f"bronze={result.bronze_count}, status={status}, output={result.output_path}, "
-            f"audit_count={result.audit_count_enabled}, runtime={result.runtime_seconds:.3f}s"
+            f"audit_count={result.audit_count_enabled}, "
+            f"source_size_bytes={result.source_size_bytes}, "
+            f"planned_output_partitions={result.planned_output_partitions}, "
+            f"runtime={result.runtime_seconds:.3f}s"
         )
 
     mismatches = [

@@ -69,6 +69,40 @@ python3 -m src.jobs.run_silver_transformations --config configs/local.yaml --pro
 python3 -m src.jobs.run_gold_kpis --config configs/local.yaml --profile tiny
 ```
 
+## Fast Local Development Runs
+
+Use the developer runner when you are changing one layer and do not want to
+rerun the full pipeline every time.
+
+```bash
+python3 -m src.jobs.run_dev_stage --stage silver
+```
+
+Available stages:
+
+```text
+bronze
+quality
+scd2
+silver
+gold
+all
+```
+
+The fast workflow uses:
+
+```text
+configs/dev_fast.yaml
+```
+
+Example affected-table run:
+
+```bash
+python3 -m src.jobs.run_dev_stage --stage all --affected-tables network_events
+```
+
+Use the normal full pipeline for checkpoint validation after several edits.
+
 ## Current Status
 
 Current completed layers for the tiny profile:
@@ -84,10 +118,11 @@ Current completed layers for the tiny profile:
 - Silver hardening added for event deduplication, idempotent reruns,
   late-arrival tracking, and optional schema evolution columns.
 - Incremental batch registry added with production-style partitioned writes.
+- Developer fast workflow added for stage-specific local testing.
 
 Next planned layer:
 
-- Manual KPI review through notebooks and then SCD Type 2 design.
+- Scale-focused experiments and larger dataset benchmarks.
 
 Useful project docs:
 
@@ -95,3 +130,4 @@ Useful project docs:
 - [Data Model](docs/data_model.md)
 - [Current Project State](docs/current_project_state.md)
 - [Gold KPI Question Bank](docs/gold_kpi_question_bank.md)
+- [Developer Fast Workflow](docs/engineering_journal/2026-08-16_dev_fast_workflow.md)

@@ -263,9 +263,11 @@ def enrich_tower_alarms(tower_alarms: DataFrame, tower_context: DataFrame) -> Da
 def build_enriched_event_tables(
     silver_tables: dict[str, DataFrame],
     controlled_event_tables: dict[str, DataFrame] | None = None,
+    enriched_table_names: list[str] | None = None,
 ) -> list[SilverEnrichmentResult]:
-    """Build all enriched Silver event tables."""
+    """Build selected enriched Silver event tables."""
     controlled_event_tables = controlled_event_tables or {}
+    selected_tables = set(enriched_table_names or SILVER_EVENT_SPECS.keys())
 
     def controlled_event_table(enriched_table_name: str) -> DataFrame:
         if enriched_table_name in controlled_event_tables:
@@ -281,38 +283,45 @@ def build_enriched_event_tables(
     regions = current_scd2_records(regions)
     tower_context = tower_region_context(towers, regions)
     subscriber_context = subscriber_device_plan_context(subscribers, devices, service_plans)
-    controlled_network_events = controlled_event_table("network_events_enriched")
-    controlled_calls = controlled_event_table("calls_enriched")
-    controlled_data_sessions = controlled_event_table("data_sessions_enriched")
-    controlled_tower_alarms = controlled_event_table("tower_alarms_enriched")
-
-    return [
-        SilverEnrichmentResult(
-            "network_events_enriched",
-            enrich_network_events(
-                controlled_network_events,
-                tower_context,
-                subscriber_context,
-            ),
-        ),
-        SilverEnrichmentResult(
-            "calls_enriched",
-            enrich_calls(
-                controlled_calls,
-                tower_context,
-                subscriber_context,
-            ),
-        ),
-        SilverEnrichmentResult(
-            "data_sessions_enriched",
-            enrich_data_sessions(
-                controlled_data_sessions,
-                tower_context,
-                subscriber_context,
-            ),
-        ),
-        SilverEnrichmentResult(
-            "tower_alarms_enriched",
-            enrich_tower_alarms(controlled_tower_alarms, tower_context),
-        ),
-    ]
+    results = []
+    if "network_events_enriched" in selected_tables:
+        results.append(
+            SilverEnrichmentResult(
+                "network_events_enriched",
+                enrich_network_events(
+                    controlled_event_table("network_events_enriched"),
+                    tower_context,
+                    subscriber_context,
+                ),
+            )
+        )
+    if "calls_enriched" in selected_tables:
+        results.append(
+            SilverEnrichmentResult(
+                "calls_enriched",
+                enrich_calls(
+                    controlled_event_table("calls_enriched"),
+                    tower_context,
+                    subscriber_context,
+                ),
+            )
+        )
+    if "data_sessions_enriched" in selected_tables:
+        results.append(
+            SilverEnrichmentResult(
+                "data_sessions_enriched",
+                enrich_data_sessions(
+                    controlled_event_table("data_sessions_enriched"),
+                    tower_context,
+                    subscriber_context,
+                ),
+            )
+        )
+    if "tower_alarms_enriched" in selected_tables:
+        results.append(
+            SilverEnrichmentResult(
+                "tower_alarms_enriched",
+                enrich_tower_alarms(controlled_event_table("tower_alarms_enriched"), tower_context),
+            )
+        )
+    return results

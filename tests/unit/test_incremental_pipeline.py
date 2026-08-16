@@ -107,3 +107,55 @@ incremental:
     }
     assert received_spark_ids == [id(fake_spark)] * 5
     assert fake_spark.stopped
+
+
+def test_incremental_pipeline_passes_affected_quality_tables(monkeypatch, tmp_path):
+    config_path = tmp_path / "local.yaml"
+    config_path.write_text(
+        f"""
+spark:
+  app_name: TowerIQTest
+  master: local[*]
+  adaptive_query_execution: true
+  use_pyspark_package: true
+paths:
+  raw: data/raw
+  bronze: data/bronze
+  silver: data/silver
+  gold: data/gold
+  quarantine: data/quarantine
+incremental:
+  registry_path: {tmp_path / "registry.json"}
+""",
+        encoding="utf-8",
+    )
+
+    class FakeSpark:
+        def stop(self):
+            pass
+
+    received_tables = []
+
+    def stage_result(**kwargs):
+        return []
+
+    def quality_result(**kwargs):
+        received_tables.append(kwargs["table_names"])
+        return []
+
+    monkeypatch.setattr(run_incremental_pipeline, "create_spark_session", lambda **kwargs: FakeSpark())
+    monkeypatch.setattr(run_incremental_pipeline, "run_bronze_ingestion", stage_result)
+    monkeypatch.setattr(run_incremental_pipeline, "run_quality_checks", quality_result)
+    monkeypatch.setattr(run_incremental_pipeline, "run_scd2_dimensions", stage_result)
+    monkeypatch.setattr(run_incremental_pipeline, "run_silver_transformations", stage_result)
+    monkeypatch.setattr(run_incremental_pipeline, "run_gold_kpis", stage_result)
+
+    result = run_incremental_pipeline.run_incremental_pipeline(
+        config_path=str(config_path),
+        profile="tiny",
+        batch_id="BATCH_NEW",
+        affected_quality_tables=["network_events", "calls"],
+    )
+
+    assert result["status"] == "completed"
+    assert received_tables == [["network_events", "calls"]]

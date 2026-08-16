@@ -179,6 +179,59 @@ These tables help answer questions such as:
 - Which subscriber segments are most affected?
 - Which towers should be prioritized for maintenance?
 
+## Fast Local Development Workflow
+
+TowerIQ now has a developer-focused runner for quick local feedback:
+
+```bash
+python3 -m src.jobs.run_dev_stage --stage silver
+```
+
+This runner uses:
+
+```text
+configs/dev_fast.yaml
+```
+
+It can run only one stage at a time:
+
+```text
+bronze
+quality
+scd2
+silver
+gold
+all
+```
+
+This is useful because small local Spark datasets are often dominated by fixed
+Spark overhead instead of row-processing time. If only Silver code changed, we
+can rerun only Silver and Gold instead of paying the cost of Raw, Bronze, and
+Quality again.
+
+The normal full pipeline is still used for checkpoint validation. The fast
+runner is for day-to-day coding feedback.
+
+Latest measured dev-fast result:
+
+| Run | Wall Time |
+| --- | ---: |
+| Full affected flow for `network_events` | 20.454 sec |
+| Silver-only rerun | 5.437 sec |
+| Gold-only rerun | 7.448 sec |
+
+Silver-only plus Gold-only was about 37% faster than rerunning the full
+affected flow.
+
+Gold-only also now maps affected source tables to affected enriched Silver
+tables. For example:
+
+```text
+network_events -> network_events_enriched
+```
+
+That keeps standalone Gold reruns aligned with the incremental pipeline.
+
 ## Notebooks
 
 Inspection notebooks have been created so results can be reviewed manually.

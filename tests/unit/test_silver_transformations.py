@@ -1,4 +1,7 @@
-from src.jobs.run_silver_transformations import SOURCE_TABLE_BY_ENRICHED_TABLE
+from types import SimpleNamespace
+
+from src.jobs import run_silver_transformations
+from src.jobs.run_silver_transformations import SOURCE_TABLE_BY_ENRICHED_TABLE, affected_enriched_tables
 from src.transformations.silver_controls import SCHEMA_EVOLUTION_OPTIONAL_COLUMNS, SILVER_EVENT_SPECS
 
 
@@ -37,3 +40,78 @@ def test_schema_evolution_optional_columns_are_known():
         "source_system",
         "producer_schema_version",
     }
+
+
+def test_affected_enriched_tables_maps_event_sources_only():
+    assert affected_enriched_tables(["network_events", "calls"]) == [
+        "network_events_enriched",
+        "calls_enriched",
+    ]
+
+
+def test_affected_enriched_tables_rebuilds_all_when_dimension_changes():
+    assert affected_enriched_tables(["subscribers"]) == [
+        "network_events_enriched",
+        "calls_enriched",
+        "data_sessions_enriched",
+        "tower_alarms_enriched",
+    ]
+
+
+class FakeWriter:
+    def __init__(self, owner):
+        self.owner = owner
+
+    def mode(self, value):
+        self.owner.write_mode = value
+        return self
+
+    def partitionBy(self, *columns):
+        self.owner.partition_columns = columns
+        return self
+
+    def parquet(self, path):
+        self.owner.output_path = path
+
+
+class FakeDataFrame:
+    def __init__(self):
+        self.write = FakeWriter(self)
+        self.write_mode = None
+        self.partition_columns = None
+        self.output_path = None
+
+
+def test_write_enriched_table_records_skipped_audit_and_partition_plan(monkeypatch, tmp_path):
+    dataframe = FakeDataFrame()
+    result = SimpleNamespace(table_name="network_events_enriched", dataframe=dataframe)
+
+    monkeypatch.setattr(run_silver_transformations, "apply_output_partition_plan", lambda df, partitions: df)
+
+    job_result = run_silver_transformations.write_enriched_table(
+        result=result,
+        paths={"silver": str(tmp_path)},
+        profile="tiny",
+        source_count=None,
+        deduplicated_source_count=None,
+        duplicates_removed=None,
+        late_arriving_count=None,
+        control_runtime_seconds=0.1,
+        count_outputs=False,
+        partition_config={
+            "strategy": "auto",
+            "tiny_file_threshold_mb": 1,
+            "tiny_file_partitions": 1,
+            "target_file_size_mb": 128,
+            "min_partitions": 2,
+            "max_partitions": 64,
+        },
+        source_size_bytes=10 * 1024,
+    )
+
+    assert job_result.audit_count_enabled is False
+    assert job_result.input_count is None
+    assert job_result.output_count is None
+    assert job_result.planned_output_partitions == 1
+    assert dataframe.write_mode == "append"
+    assert dataframe.partition_columns == ("event_date", "_pipeline_batch_id")

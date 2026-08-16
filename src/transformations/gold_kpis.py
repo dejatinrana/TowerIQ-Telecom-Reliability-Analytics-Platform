@@ -235,3 +235,39 @@ def build_gold_kpis(enriched_silver_tables: dict[str, DataFrame]) -> list[GoldKp
         GoldKpiResult("network_type_daily_kpis", build_network_type_daily_kpis(network_events, data_sessions)),
         GoldKpiResult("subscriber_segment_daily_kpis", build_subscriber_segment_daily_kpis(calls, data_sessions)),
     ]
+
+
+def build_selected_gold_kpis(
+    enriched_silver_tables: dict[str, DataFrame],
+    kpi_table_names: list[str] | None = None,
+) -> list[GoldKpiResult]:
+    """Build selected Gold KPI tables while preserving internal dependencies."""
+    selected_tables = kpi_table_names or [
+        "tower_daily_kpis",
+        "region_daily_kpis",
+        "network_type_daily_kpis",
+        "subscriber_segment_daily_kpis",
+    ]
+    selected = set(selected_tables)
+    network_events = enriched_silver_tables["network_events_enriched"]
+    calls = enriched_silver_tables["calls_enriched"]
+    data_sessions = enriched_silver_tables["data_sessions_enriched"]
+    tower_alarms = enriched_silver_tables["tower_alarms_enriched"]
+
+    tower_daily = None
+    if selected & {"tower_daily_kpis", "region_daily_kpis"}:
+        tower_daily = build_tower_daily_kpis(network_events, calls, data_sessions, tower_alarms)
+
+    results = []
+    for table_name in selected_tables:
+        if table_name == "tower_daily_kpis":
+            results.append(GoldKpiResult("tower_daily_kpis", tower_daily))
+        elif table_name == "region_daily_kpis":
+            results.append(GoldKpiResult("region_daily_kpis", build_region_daily_kpis(tower_daily)))
+        elif table_name == "network_type_daily_kpis":
+            results.append(GoldKpiResult("network_type_daily_kpis", build_network_type_daily_kpis(network_events, data_sessions)))
+        elif table_name == "subscriber_segment_daily_kpis":
+            results.append(GoldKpiResult("subscriber_segment_daily_kpis", build_subscriber_segment_daily_kpis(calls, data_sessions)))
+        else:
+            raise ValueError(f"Unsupported Gold KPI table: {table_name}")
+    return results
