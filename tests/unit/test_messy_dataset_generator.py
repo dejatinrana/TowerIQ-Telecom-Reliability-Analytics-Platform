@@ -1,4 +1,4 @@
-from data_generator.generate_messy_dataset import build_clean_tables
+from data_generator.generate_messy_dataset import build_clean_tables, counts_for_profile
 from data_generator.scenarios.chaos import inject_messy_records
 
 
@@ -31,3 +31,11 @@ def test_messy_scenario_contains_quality_failures_for_core_rules():
     assert any(row["device_id"] == "DEV_DOES_NOT_EXIST" for row in messy["calls"])
     assert any(row["bytes_uploaded"] < 0 for row in messy["data_sessions"])
     assert any(row["severity"] == "catastrophic" for row in messy["tower_alarms"])
+
+
+def test_medium_messy_profile_counts_are_larger_than_tiny_profile_counts():
+    medium_counts = counts_for_profile("medium_messy")
+
+    assert medium_counts["network_events"] == 250000
+    assert medium_counts["network_events"] > counts_for_profile("tiny_messy")["network_events"]
+    assert medium_counts["data_sessions"] > counts_for_profile("tiny_messy")["data_sessions"]

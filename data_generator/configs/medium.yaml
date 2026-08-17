@@ -1,0 +1,12 @@
+# Medium profile for local Spark benchmark experiments.
+profile: medium_messy
+seed: 42
+regions: 8
+towers: 240
+service_plans: 6
+subscribers: 25000
+devices: 30000
+network_events: 250000
+calls: 100000
+data_sessions: 150000
+tower_alarms: 4000
