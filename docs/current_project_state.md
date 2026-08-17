@@ -232,6 +232,39 @@ network_events -> network_events_enriched
 
 That keeps standalone Gold reruns aligned with the incremental pipeline.
 
+## Medium Dataset Baseline Experiment
+
+The project has now started the 12-folder experiment workflow.
+
+Completed experiment folder:
+
+```text
+experiments/01_baseline
+```
+
+The first medium baseline used:
+
+```text
+profile=medium_messy
+batch_id=MEDIUM_MESSY_EXP001_BASELINE_20260817_001
+raw_size=90 MB
+total_csv_lines=559,306
+```
+
+Runtime result:
+
+| Stage | Runtime |
+| --- | ---: |
+| Bronze | 10.011 sec |
+| Quality | 17.633 sec |
+| SCD2 | 4.566 sec |
+| Silver | 9.643 sec |
+| Gold | 4.582 sec |
+| Total | 46.435 sec |
+
+The main bottlenecks are Quality event validation and Silver event enrichment.
+This baseline is the comparison point for the next experiment folders.
+
 ## Notebooks
 
 Inspection notebooks have been created so results can be reviewed manually.
